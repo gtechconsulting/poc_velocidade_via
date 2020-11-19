@@ -1,11 +1,20 @@
 package br.com.gtechconsulting.velocidadedaviapoc.model
 
+import com.google.gson.annotations.SerializedName
+
 data class SpeedLimit(
-    var id: Int = 0,
-    var viaId: Int = 0,
-    var viaName: String = "",
-    var latitude: Double = 0.0,
-    var longitude: Double = 0.0,
-    var speedLimit: Int = 0,
-    var direction: String = ""
+    @SerializedName("id")
+    var id: Int,
+    @SerializedName("viaId")
+    var viaId: Int?,
+    @SerializedName("viaName")
+    var viaName: String?,
+    @SerializedName("latitude")
+    var latitude: Double?,
+    @SerializedName("longitude")
+    var longitude: Double?,
+    @SerializedName("speedLimit")
+    var speedLimit: Int?,
+    @SerializedName("direction")
+    var direction: String?
 )
