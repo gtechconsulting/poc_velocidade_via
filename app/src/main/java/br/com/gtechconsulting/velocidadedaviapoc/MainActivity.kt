@@ -21,8 +21,13 @@ import br.com.gtechconsulting.velocidadedaviapoc.Utils.CountUpTimer
 import br.com.gtechconsulting.velocidadedaviapoc.db.DatabaseHandler
 import br.com.gtechconsulting.velocidadedaviapoc.model.Products
 import br.com.gtechconsulting.velocidadedaviapoc.model.SpeedLimit
+import br.com.gtechconsulting.velocidadedaviapoc.model.SpeedLimitList
 import br.com.gtechconsulting.velocidadedaviapoc.networking.Endpoint
 import br.com.gtechconsulting.velocidadedaviapoc.networking.NetworkUtils
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import retrofit2.Call
 import retrofit2.Callback
 import retrofit2.Response
@@ -37,6 +42,7 @@ class MainActivity : AppCompatActivity() {
     lateinit var counter: CountUpTimer
     lateinit var saveCounter: CountUpTimer
     lateinit var mTTS: TextToSpeech
+    lateinit var dialogSave: AlertDialog
 
     @RequiresApi(Build.VERSION_CODES.M)
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -140,39 +146,43 @@ class MainActivity : AppCompatActivity() {
         dialog.show()
     }
 
-    private fun dialogSaveDataBase(response:  Response<List<SpeedLimit>>){
-        val total = response.body()?.size
+    private fun dialogSaveDataBase(response:  Response<SpeedLimitList>){
+        val total = response.body()?.speedLimits?.size
         val builder = AlertDialog.Builder(this)
         builder.setTitle("Retorno API.")
         builder.setMessage("$total registros serão salvos. Proseguir?")
         builder.setPositiveButton("Sim"){dialog, which ->
-            saveCounter.start()
-            Thread.sleep(3000)
-            response.body()?.forEach {it ->
-                val speedLimit = SpeedLimit(
-                    it.id,
-                    it.viaId,
-                    it.viaName,
-                    it.latitude,
-                    it.longitude,
-                    it.speedLimit,
-                    it.direction
-                )
-                databaseHandler.insert(speedLimit)
+            
+            GlobalScope.launch(context = Dispatchers.Main) {
+                dialogSave.dismiss()
+                saveCounter.start()
 
+                response.body()?.speedLimits?.forEach {it ->
+                    val speedLimit = SpeedLimit(
+                        it.id,
+                        it.viaId,
+                        it.viaName,
+                        it.latitude,
+                        it.longitude,
+                        it.speedLimit,
+                        it.direction
+                    )
+                    databaseHandler.insert(speedLimit)
+
+                }
+
+                textView.text = response.body()?.speedLimits?.size.toString()  + " registros na base"
+                saveCounter.cancel()
+                progressBar.visibility = View.GONE
+                getSpeedLimitByLatLong()
             }
 
-            textView.text = response.body()?.size.toString()  + " registros na base"
-            saveCounter.cancel()
-            progressBar.visibility = View.GONE
-
-            getSpeedLimitByLatLong()
         }
         builder.setNeutralButton("Cancelar"){_,_ ->
             btnReload.isEnabled = true
         }
-        val dialog: AlertDialog = builder.create()
-        dialog.show()
+        dialogSave = builder.create()
+        dialogSave.show()
     }
 
     private fun getData() {
@@ -181,11 +191,11 @@ class MainActivity : AppCompatActivity() {
         val path = "http://40.117.187.59:9090/api/poc-speed-limitt-service/retrieveSpeedLimit/"
         val retrofitClient = NetworkUtils.getRetrofitInstance(path)
         val endpoint = retrofitClient.create(Endpoint::class.java)
-        val callback = endpoint.retriveAll()
+        val callback = endpoint.retriveAllPage(0, 5000)
         //val callback = endpoint.retriveAllCarga()
 
-        callback.enqueue(object : Callback<List<SpeedLimit>> {
-            override fun onFailure(call: Call<List<SpeedLimit>>, t: Throwable) {
+        callback.enqueue(object : Callback<SpeedLimitList> {
+            override fun onFailure(call: Call<SpeedLimitList>, t: Throwable) {
                 Log.i("ERROR - ", t.message.toString())
                 counter.timeOut()
                 progressBar.visibility = View.GONE
@@ -193,7 +203,7 @@ class MainActivity : AppCompatActivity() {
                 btnReload.isEnabled = true
             }
 
-            override fun onResponse(call: Call<List<SpeedLimit>>, response:  Response<List<SpeedLimit>>) {
+            override fun onResponse(call: Call<SpeedLimitList>, response:  Response<SpeedLimitList>) {
                 counter.cancel()
                 this@MainActivity.runOnUiThread(java.lang.Runnable {
                     dialogSaveDataBase(response)
