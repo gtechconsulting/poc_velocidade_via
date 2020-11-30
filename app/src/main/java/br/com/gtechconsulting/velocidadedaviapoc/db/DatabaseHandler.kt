@@ -22,7 +22,7 @@ class DatabaseHandler(ctx: Context): SQLiteOpenHelper(ctx,DB_NAME, null, DB_VERS
         onCreate(db)
     }
 
-    fun insert(speedLimit: SpeedLimit): Boolean {
+    fun insert(speedLimit: SpeedLimit) {
         val db = this.writableDatabase
         val values = ContentValues()
         values.put(VIA_ID, speedLimit.viaId)
@@ -32,7 +32,21 @@ class DatabaseHandler(ctx: Context): SQLiteOpenHelper(ctx,DB_NAME, null, DB_VERS
         values.put(VELO, speedLimit.speedLimit)
         values.put(DIREC, speedLimit.direction)
         val _success = db.insert(TABLE_NAME,null,values)
-        return (("$_success").toInt() != -1)
+        //return (("$_success").toInt() != -1)
+    }
+
+    fun insert2(speedLimit: SpeedLimit) {
+
+        var viaId = speedLimit.viaId
+        var viaName = speedLimit.viaName?.replace("'", "")
+        var lat = speedLimit.latitude
+        var lng = speedLimit.longitude
+        var sl = speedLimit.speedLimit
+        var direction = speedLimit.direction
+
+        val db = writableDatabase
+        val insertQuery = "INSERT INTO $TABLE_NAME  ($VIA_ID, $VIA_NAME, $LAT, $LONG, $VELO, $DIREC) VALUES ($viaId, '$viaName', $lat,$lng, $sl, '$direction')"
+        val cursor = db.rawQuery(insertQuery, null)
     }
 
     fun count(): Int {
@@ -73,13 +87,17 @@ class DatabaseHandler(ctx: Context): SQLiteOpenHelper(ctx,DB_NAME, null, DB_VERS
         val selectQuery = "SELECT $ID, $VIA_ID, $VIA_NAME, $LAT, $LONG, $VELO, $DIREC FROM $TABLE_NAME WHERE $LAT > $p3x AND $LAT < $p1x AND $LONG < $p2y AND $LONG > $p4y "
         val cursor = db.rawQuery(selectQuery, null)
         cursor?.moveToFirst()
-        speedLimit.id = cursor.getInt(cursor.getColumnIndex(ID))
-        speedLimit.viaId = cursor.getInt(cursor.getColumnIndex(VIA_ID))
-        speedLimit.viaName = cursor.getString(cursor.getColumnIndex(VIA_NAME))
-        speedLimit.latitude = cursor.getDouble(cursor.getColumnIndex(LAT))
-        speedLimit.longitude = cursor.getDouble(cursor.getColumnIndex(LONG))
-        speedLimit.direction = cursor.getString(cursor.getColumnIndex(DIREC))
-        speedLimit.speedLimit = cursor.getInt(cursor.getColumnIndex(VELO))
+
+        if (cursor.count > 0) {
+            speedLimit.id = cursor.getInt(cursor.getColumnIndex(ID))
+            speedLimit.viaId = cursor.getInt(cursor.getColumnIndex(VIA_ID))
+            speedLimit.viaName = cursor.getString(cursor.getColumnIndex(VIA_NAME))
+            speedLimit.latitude = cursor.getDouble(cursor.getColumnIndex(LAT))
+            speedLimit.longitude = cursor.getDouble(cursor.getColumnIndex(LONG))
+            speedLimit.direction = cursor.getString(cursor.getColumnIndex(DIREC))
+            speedLimit.speedLimit = cursor.getInt(cursor.getColumnIndex(VELO))
+        }
+
         cursor.close()
 
         return speedLimit

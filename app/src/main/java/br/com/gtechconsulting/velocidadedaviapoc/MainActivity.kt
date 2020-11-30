@@ -1,30 +1,94 @@
 package br.com.gtechconsulting.velocidadedaviapoc
 
+import android.content.Context
 import android.graphics.PointF
+import android.location.LocationManager
+import android.net.ConnectivityManager
+import android.net.NetworkInfo
+import android.os.Build
 import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
 import android.speech.tts.TextToSpeech
+import android.util.Log
+import android.view.View
+import android.widget.Chronometer
 import kotlinx.android.synthetic.main.activity_main.*
 import android.widget.Toast
+import androidx.annotation.RequiresApi
+import androidx.appcompat.app.AlertDialog
 import androidx.core.view.isVisible
+import br.com.gtechconsulting.velocidadedaviapoc.Utils.CountUpTimer
 import br.com.gtechconsulting.velocidadedaviapoc.db.DatabaseHandler
+import br.com.gtechconsulting.velocidadedaviapoc.model.Products
 import br.com.gtechconsulting.velocidadedaviapoc.model.SpeedLimit
 import br.com.gtechconsulting.velocidadedaviapoc.networking.Endpoint
 import br.com.gtechconsulting.velocidadedaviapoc.networking.NetworkUtils
 import retrofit2.Call
 import retrofit2.Callback
 import retrofit2.Response
+import java.net.HttpURLConnection
+import java.net.URL
 import java.util.*
 
 class MainActivity : AppCompatActivity() {
 
     var totalRegistros: Int = 0
     var databaseHandler = DatabaseHandler(this)
+    lateinit var counter: CountUpTimer
+    lateinit var saveCounter: CountUpTimer
     lateinit var mTTS: TextToSpeech
 
+    @RequiresApi(Build.VERSION_CODES.M)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
+
+        val cm = applicationContext.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+        val nc = cm.getNetworkCapabilities(cm.activeNetwork)
+
+        val downSpeed = (nc?.linkDownstreamBandwidthKbps)?.div(1000)
+
+        val upSpeed = (nc?.linkUpstreamBandwidthKbps)?.div(1000)
+
+        interntInfo.text = "Velocidade download: $downSpeed Mbps \nVelocidade upload: $upSpeed Mbps"
+
+        counter = object: CountUpTimer(3000, 1){
+
+            var seg:Int = 0
+
+            override fun onCount(count: Int) {
+                seg = count
+                dataTime.text = "Tempo para buscar dados: $count segs"
+            }
+
+            override fun onFinish() {
+                Log.i("Counter", "Counting done")
+            }
+
+            override fun timeOut(){
+                cancel()
+                dataTime.text = "Timeout em: $seg segs"
+            }
+        }
+
+        saveCounter = object: CountUpTimer(30000, 1){
+
+            var seg:Int = 0
+            override fun onCount(count: Int) {
+                seg = count
+                Log.i("Counter", "Counting: $count")
+                dataBaseTime.text = "Tempo para salvar dados: $count segs"
+            }
+
+            override fun onFinish() {
+                Log.i("Counter", "Counting done")
+            }
+
+            override fun timeOut(){
+                cancel()
+                dataBaseTime.text = "Timeout em: $seg segs"
+            }
+        }
 
         mTTS = TextToSpeech(applicationContext, TextToSpeech.OnInitListener { status ->
             if (status != TextToSpeech.ERROR){
@@ -33,6 +97,11 @@ class MainActivity : AppCompatActivity() {
         })
 
         supportActionBar?.hide()
+        btnReload.isEnabled = false
+
+        btnReload.setOnClickListener {
+            getData()
+        }
 
         initProcess()
     }
@@ -42,73 +111,148 @@ class MainActivity : AppCompatActivity() {
 
     }
 
+
     private fun initProcess() {
 
         totalRegistros = databaseHandler.count()
         textView.text = totalRegistros.toString() + " registros na base"
 
-        var text = "Não existem registros na base. Realizando carga inicial."
-        textAux.text = text
-
-        mTTS.speak(text, TextToSpeech.QUEUE_FLUSH, null)
         if (totalRegistros == 0) {
-            getData()
+            dialog()
         } else {
-            textAux.text = ""
+            speedInfo.text = ""
             getSpeedLimitByLatLong()
         }
 
     }
 
+    private fun dialog(){
+        val builder = AlertDialog.Builder(this)
+        builder.setTitle("Sem registros na base.")
+        builder.setMessage("Não existem registros na base. Realizar carga agora?")
+        builder.setPositiveButton("Sim"){dialog, which ->
+            getData()
+        }
+        builder.setNeutralButton("Cancelar"){_,_ ->
+            btnReload.isEnabled = true
+        }
+        val dialog: AlertDialog = builder.create()
+        dialog.show()
+    }
+
+    private fun dialogSaveDataBase(response:  Response<List<SpeedLimit>>){
+        val total = response.body()?.size
+        val builder = AlertDialog.Builder(this)
+        builder.setTitle("Retorno API.")
+        builder.setMessage("$total registros serão salvos. Proseguir?")
+        builder.setPositiveButton("Sim"){dialog, which ->
+            saveCounter.start()
+            Thread.sleep(3000)
+            response.body()?.forEach {it ->
+                val speedLimit = SpeedLimit(
+                    it.id,
+                    it.viaId,
+                    it.viaName,
+                    it.latitude,
+                    it.longitude,
+                    it.speedLimit,
+                    it.direction
+                )
+                databaseHandler.insert(speedLimit)
+
+            }
+
+            textView.text = response.body()?.size.toString()  + " registros na base"
+            saveCounter.cancel()
+            progressBar.visibility = View.GONE
+
+            getSpeedLimitByLatLong()
+        }
+        builder.setNeutralButton("Cancelar"){_,_ ->
+            btnReload.isEnabled = true
+        }
+        val dialog: AlertDialog = builder.create()
+        dialog.show()
+    }
+
     private fun getData() {
-        val retrofitClient = NetworkUtils.getRetrofitInstance("http://40.117.187.59:9090/api/poc-speed-limitt-service/retrieveSpeedLimit/")
+        counter.start()
+        progressBar.visibility = View.VISIBLE
+        val path = "http://40.117.187.59:9090/api/poc-speed-limitt-service/retrieveSpeedLimit/"
+        val retrofitClient = NetworkUtils.getRetrofitInstance(path)
         val endpoint = retrofitClient.create(Endpoint::class.java)
         val callback = endpoint.retriveAll()
+        //val callback = endpoint.retriveAllCarga()
 
         callback.enqueue(object : Callback<List<SpeedLimit>> {
             override fun onFailure(call: Call<List<SpeedLimit>>, t: Throwable) {
-                Toast.makeText(baseContext, t.message, Toast.LENGTH_SHORT).show()
+                Log.i("ERROR - ", t.message.toString())
+                counter.timeOut()
+                progressBar.visibility = View.GONE
+                Toast.makeText(baseContext, t.message, Toast.LENGTH_LONG).show()
+                btnReload.isEnabled = true
             }
 
-            override fun onResponse(call: Call<List<SpeedLimit>>, response: Response<List<SpeedLimit>>) {
-                response.body()?.forEach {it ->
-                    val speedLimit = SpeedLimit(
-                        it.id,
-                        it.viaId,
-                        it.viaName,
-                        it.latitude,
-                        it.longitude,
-                        it.speedLimit,
-                        it.direction
-                    )
-                    print(speedLimit.viaId)
-                    databaseHandler.insert(speedLimit)
-                }
-                textView.text = response.body()?.size.toString()  + " registros na base"
-                textAux.text = ""
+            override fun onResponse(call: Call<List<SpeedLimit>>, response:  Response<List<SpeedLimit>>) {
+                counter.cancel()
+                this@MainActivity.runOnUiThread(java.lang.Runnable {
+                    dialogSaveDataBase(response)
+                })
+            }
+        })
+    }
 
+
+    private fun getProducts() {
+        counter.start()
+        progressBar.visibility = View.VISIBLE
+        val path = "http://vps13132.publiccloud.com.br:3002/"
+        val retrofitClient = NetworkUtils.getRetrofitInstance(path)
+        val endpoint = retrofitClient.create(Endpoint::class.java)
+        val callback = endpoint.products()
+
+        callback.enqueue(object : Callback<List<Products>> {
+            override fun onFailure(call: Call<List<Products>>, t: Throwable) {
+                counter.cancel()
+                progressBar.visibility = View.GONE
+                Toast.makeText(baseContext, t.message, Toast.LENGTH_LONG).show()
+                btnReload.isEnabled = true
+            }
+
+            override fun onResponse(call: Call<List<Products>>, response: Response<List<Products>>) {
+                counter.cancel()
+                progressBar.visibility = View.GONE
                 getSpeedLimitByLatLong()
             }
         })
     }
 
     fun getSpeedLimitByLatLong() {
-        val latitude: Double = -20.37777
-        val longitude: Double = -49.78142
-        val area: Double = 1.0
+        val latitude: Double = -23.125999
+        val longitude: Double = -46.56160
+        val area = 1000.0
 
-        val center:PointF = PointF(latitude.toFloat(), longitude.toFloat())
-        val mult:Double = 1.1
+        val center = PointF(latitude.toFloat(), longitude.toFloat())
+        val mult = 1.1
 
         val p1:PointF =  calculateDerivedPosition(center,mult*area,0.0)
         val p2:PointF =  calculateDerivedPosition(center,mult*area,90.0)
         val p3:PointF =  calculateDerivedPosition(center,mult*area,180.0)
         val p4:PointF =  calculateDerivedPosition(center,mult*area,270.0)
 
-        //val via:SpeedLimit = databaseHandler.getSpeedLimit(latitude,longitude, area)
         val via:SpeedLimit = databaseHandler.getSpeedLimit(p1,p2, p3, p4)
 
-        textAux.text = via.viaName + " limite de velocidade: " + via.speedLimit + "km/h"
+        if(via.id != null) {
+            val text:String = via.viaName + " limite de velocidade: " + via.speedLimit + "km/h"
+            speedInfo.text = text
+
+            textLatLong.text = "latitude: " + via.latitude + " longitude: " + via.longitude
+
+            mTTS.speak(text, TextToSpeech.QUEUE_FLUSH, null)
+        } else {
+            speedInfo.text = "localização não encontrada."
+            textLatLong.text = ""
+        }
     }
 
     fun calculateDerivedPosition(pointF: PointF, range:Double, bearing:Double): PointF {

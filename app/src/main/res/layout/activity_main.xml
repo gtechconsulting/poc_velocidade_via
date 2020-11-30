@@ -26,6 +26,26 @@
             android:scaleType="fitXY"
             app:srcCompat= "@drawable/sascar"/>
 
+        <TextView
+            android:id="@+id/interntInfo"
+            android:layout_width="match_parent"
+            android:layout_height="48sp"
+            android:layout_marginStart="8dp"
+            android:layout_marginTop="8dp"
+            android:layout_marginEnd="8dp"
+            android:text="Velocidade Internet:"
+            android:layout_below="@id/sascarLogo"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="parent" />
+
+        <ProgressBar
+            android:id="@+id/progressBar"
+            style="?android:attr/progressBarStyleLarge"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_below="@id/interntInfo"
+            android:layout_centerHorizontal="true" />
 
         <TextView
             android:id="@+id/textView"
@@ -34,22 +54,73 @@
             android:layout_marginStart="8dp"
             android:layout_marginTop="8dp"
             android:layout_marginEnd="8dp"
-            android:layout_below="@id/sascarLogo"
+            android:text="0 Registros na base"
+            android:layout_below="@id/interntInfo"
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintTop_toTopOf="parent" />
 
         <TextView
-            android:id="@+id/textAux"
+            android:id="@+id/dataTime"
             android:layout_width="match_parent"
             android:layout_height="48sp"
             android:layout_marginStart="8dp"
             android:layout_marginTop="8dp"
             android:layout_marginEnd="8dp"
+            android:text="tempo para buscar dados:"
             android:layout_below="@id/textView"
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintTop_toTopOf="parent" />
+
+        <TextView
+            android:id="@+id/dataBaseTime"
+            android:layout_width="match_parent"
+            android:layout_height="48sp"
+            android:layout_marginStart="8dp"
+            android:layout_marginTop="8dp"
+            android:layout_marginEnd="8dp"
+            android:text="Tempo para salvar dados:"
+            android:layout_below="@id/dataTime"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="parent" />
+
+        <TextView
+            android:id="@+id/speedInfo"
+            android:layout_width="match_parent"
+            android:layout_height="48sp"
+            android:layout_marginStart="8dp"
+            android:layout_marginTop="8dp"
+            android:layout_marginEnd="8dp"
+            android:text="Velocidade da via:"
+            android:layout_below="@id/dataBaseTime"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="parent" />
+
+
+        <TextView
+            android:id="@+id/textLatLong"
+            android:layout_width="match_parent"
+            android:layout_height="48sp"
+            android:layout_marginStart="8dp"
+            android:layout_marginTop="8dp"
+            android:layout_marginEnd="8dp"
+            android:layout_below="@id/speedInfo"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="parent" />
+
+        <Button
+            android:id="@+id/btnReload"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:height="20dp"
+            android:paddingLeft="10dp"
+            android:text="Reload Data"
+            android:layout_marginRight="10dp"
+            android:layout_below="@id/textLatLong"></Button>
 
     </RelativeLayout>
 
